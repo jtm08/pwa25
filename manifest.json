@@ -1,0 +1,20 @@
+{
+  "short_name": "ProgTimes",
+  "name": "Progressive Times Online News",
+  "icons": [
+    {
+      "src": "/images/newspaper.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/images/newspaper.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#FFD700"
+}
