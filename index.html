@@ -1,0 +1,94 @@
+<script>
+  var endpoint;
+  var key;
+  var authSecret;
+
+  // 🔹 Función que convierte una clave pública VAPID en formato Base64 a un arreglo de bytes (Uint8Array)
+  function urlBase64ToUint8Array(base64String) {
+    // Añade relleno "=" para que el Base64 sea válido
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    // Reemplaza caracteres URL-safe (- y _) por los equivalentes estándar (+ y /)
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+
+    // Decodifica el string base64 en datos binarios
+    const rawData = window.atob(base64);
+    // Crea un arreglo de bytes del mismo tamaño
+    const outputArray = new Uint8Array(rawData.length);
+
+    // Convierte cada carácter en su código numérico correspondiente
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    // Devuelve la clave pública en formato binario
+    return outputArray;
+  }
+
+  // 🔹 Define la clave pública del servidor (VAPID) que se usará para las notificaciones push
+  function determineAppServerKey() {
+    // Clave pública generada por el servidor (única para tu proyecto)
+    var vapidPublicKey = 'BAyb_WgaR0L0pODaR7wWkxJi__tWbM1MPBymyRDFEGjtDCWeRYS9EF7yGoCHLdHJi6hikYdg4MuYaK0XoD0qnoY';
+    // Convierte la clave pública a formato binario con la función anterior
+    return urlBase64ToUint8Array(vapidPublicKey);
+  }
+
+  // 🔹 Verifica si el navegador soporta Service Workers
+  if ('serviceWorker' in navigator) {
+    // Registra el archivo "sw.js" como Service Worker
+    navigator.serviceWorker.register('sw.js').then(function(registration) {
+
+        // Obtiene la suscripción push actual (si ya existe)
+        return registration.pushManager.getSubscription()
+          .then(function(subscription) {
+
+              // Si ya existe una suscripción, no crea una nueva
+              if (subscription) {
+                return;
+              }
+
+              // Si no existe, crea una nueva suscripción push
+              return registration.pushManager.subscribe({
+                  // Garantiza que toda notificación sea visible para el usuario
+                  userVisibleOnly: true,
+                  // Usa la clave pública VAPID del servidor para autenticar la suscripción
+                  applicationServerKey: determineAppServerKey()
+                })
+                // Cuando la suscripción se crea correctamente
+                .then(function(subscription) {
+
+                  // Obtiene las claves públicas del usuario (para cifrar los mensajes)
+                  var rawKey = subscription.getKey ? subscription.getKey('p256dh') : '';
+                  // Convierte la clave a formato Base64 para enviarla al servidor
+                  key = rawKey ? btoa(String.fromCharCode.apply(null, new Uint8Array(rawKey))) : '';
+
+                  // Obtiene la clave de autenticación (auth secret)
+                  var rawAuthSecret = subscription.getKey ? subscription.getKey('auth') : '';
+                  // Convierte la clave a Base64 también
+                  authSecret = rawAuthSecret ?
+                    btoa(String.fromCharCode.apply(null, new Uint8Array(rawAuthSecret))) : '';
+
+                  // Guarda el endpoint (URL donde se enviarán los mensajes push)
+                  endpoint = subscription.endpoint;
+
+                  // 🔹 Envía los datos de la suscripción (endpoint y claves) al servidor
+                  return fetch('http://localhost:3111/register', {
+                    method: 'post',
+                    headers: new Headers({
+                      'content-type': 'application/json'
+                    }),
+                    // Se manda en formato JSON al servidor
+                    body: JSON.stringify({
+                      endpoint: subscription.endpoint,
+                      key: key,
+                      authSecret: authSecret,
+                    }),
+                  })
+                });
+            });
+          }).catch(function(err) {
+        // Si el registro del Service Worker falla, se muestra un error en consola
+        console.log('ServiceWorker registration failed: ', err);
+      });
+    }
+</script>
